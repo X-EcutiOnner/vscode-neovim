@@ -8,7 +8,7 @@
         "ui",
         "workspace"
     ],
-    "version": "1.8.1",
+    "version": "1.17.2",
     "repository": {
         "type": "git",
         "url": "https://github.com/asvetliakov/vscode-neovim"
@@ -39,12 +39,6 @@
         "configuration": {
             "title": "Neovim",
             "properties": {
-                "vscode-neovim.neovimPath": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Neovim path",
-                    "deprecationMessage": "Remove this setting and use neovimExecutablePaths.win32/linux/darwin instead. If you continue to use this setting, keep in mind this setting takes precedence over neovimExecutablePaths.windows/linux/darwin and those settings won't work. If you want them to work, just remove this setting from your settings.json or make its input box in User Settings empty"
-                },
                 "vscode-neovim.neovimExecutablePaths.win32": {
                     "type": "string",
                     "default": "nvim",
@@ -63,29 +57,23 @@
                     "title": "Neovim executable path on Linux (and in WSL)",
                     "markdownDescription": "Path to Nvim executable if running VS Code on Linux or WSL. \n- Example: `/usr/bin/nvim`\n- If `useWSL` setting is checked, vscode-neovim will look for this path in default WSL distro."
                 },
-                "vscode-neovim.neovimInitPath": {
-                    "type": "string",
-                    "default": "",
-                    "title": "Custom init.vim path",
-                    "deprecationMessage": "Use neovimInitVimPaths.win32/linux/darwin instead. If you continue to use this setting, keep in mind this setting takes precedence over neovimInitVimPaths.win32/linux/darwin and those settings won't work. If you want them to work, just remove this setting from your settings.json or make its input box in User Settings empty"
-                },
                 "vscode-neovim.neovimInitVimPaths.win32": {
                     "type": "string",
                     "default": "",
                     "title": "Custom init.vim path on Windows",
-                    "markdownDescription": "Path to alternative `init.vim` file on Windows, equivalent to Nvim startup option `-u`. If `useWSL` is enabled, the value of the `neovimInitVimPaths.linux` setting will be used to find the init.vim file instead. You can also use `exists('g:vscode')` in your `init.vim` to check if Nvim is running in vscode."
+                    "markdownDescription": "Path to alternative `init.vim` file on Windows, equivalent to Nvim startup option `-u`. If `useWSL` is enabled, the value of the `neovimInitVimPaths.linux` setting will be used to find the init.vim file instead. You can also use `exists('g:vscode')` in your `init.vim` (or `vim.g.vscode` in `init.lua`) to check if Nvim is running in vscode."
                 },
                 "vscode-neovim.neovimInitVimPaths.darwin": {
                     "type": "string",
                     "default": "",
                     "title": "Custom init.vim path on macOS",
-                    "markdownDescription": "Path to alternative `init.vim` file on macOS, equivalent to Nvim startup option `-u`. You can also use `exists('g:vscode')` in your `init.vim` to check if Nvim is running in vscode."
+                    "markdownDescription": "Path to alternative `init.vim` file on macOS, equivalent to Nvim startup option `-u`. You can also use `exists('g:vscode')` in your `init.vim` (or `vim.g.vscode` in `init.lua`) to check if Nvim is running in vscode."
                 },
                 "vscode-neovim.neovimInitVimPaths.linux": {
                     "type": "string",
                     "default": "",
                     "title": "Custom init.vim path on Linux",
-                    "markdownDescription": "Path to alternative `init.vim` file on Linux or default WSL distro, equivalent to Nvim startup option `-u`. If the `useWSL` setting is checked, this path will be used to find `init.vim` in Windows Subsystem for Linux. You can also use `exists('g:vscode')` in your `init.vim` to check if Nvim is running in vscode."
+                    "markdownDescription": "Path to alternative `init.vim` file on Linux or default WSL distro, equivalent to Nvim startup option `-u`. If the `useWSL` setting is checked, this path will be used to find `init.vim` in Windows Subsystem for Linux. You can also use `exists('g:vscode')` in your `init.vim` (or `vim.g.vscode` in `init.lua`) to check if Nvim is running in vscode."
                 },
                 "vscode-neovim.afterInitConfig": {
                     "type": "array",
@@ -94,7 +82,7 @@
                         "type": "string"
                     },
                     "title": "After init config",
-                    "markdownDescription": "Config to be sourced after init config. e.g. : `[\"echo 'hello'\", \"lua << EOF\", \"require'vscode-neovim'.notify('world')\", \"EOF\"]`"
+                    "markdownDescription": "Config to be sourced after init config. e.g. : `[\"echo 'hello'\", \"lua << EOF\", \"require'vscode'.notify('world')\", \"EOF\"]`"
                 },
                 "vscode-neovim.neovimClean": {
                     "type": "boolean",
@@ -108,31 +96,15 @@
                 },
                 "vscode-neovim.neovimWidth": {
                     "type": "number",
-                    "default": 1000,
+                    "default": 300,
                     "title": "Neovim width",
                     "description": "Neovim viewport width. Increase if you're working with long lines and have horizontal scroll problems. Larger values will affect neovim performance"
-                },
-                "vscode-neovim.completionDelay": {
-                    "type": "number",
-                    "default": 1500,
-                    "title": "Completion Delay",
-                    "description": "The delay in ms until the wildmenu completions are shown. This is to not bother you when you write :w or :noh."
                 },
                 "vscode-neovim.neovimViewportHeightExtend": {
                     "type": "number",
                     "default": 1,
                     "title": "Neovim viewport height extend",
                     "description": "How much to extend neovim viewport on each side beyond vscode editor size. Increase if you are not seeing decorations or highlights on the edges of the editor."
-                },
-                "vscode-neovim.useCtrlKeysForNormalMode": {
-                    "deprecationMessage": "Use `vscode-neovim.ctrlKeysForNormalMode` instead (Set it to empty)",
-                    "type": "boolean",
-                    "default": true
-                },
-                "vscode-neovim.useCtrlKeysForInsertMode": {
-                    "deprecationMessage": "Use `vscode-neovim.ctrlKeysForInsertMode` instead (Set it to empty)",
-                    "type": "boolean",
-                    "default": true
                 },
                 "vscode-neovim.ctrlKeysForNormalMode": {
                     "type": "array",
@@ -188,6 +160,7 @@
                         "j",
                         "k",
                         "l",
+                        "m",
                         "o",
                         "r",
                         "t",
@@ -256,6 +229,7 @@
                         "d",
                         "h",
                         "j",
+                        "m",
                         "o",
                         "r",
                         "t",
@@ -293,22 +267,10 @@
                     "default": "",
                     "description": "Log file path"
                 },
-                "vscode-neovim.logLevel": {
-                    "type": "string",
-                    "default": "error",
-                    "enum": [
-                        "none",
-                        "error",
-                        "warn",
-                        "info",
-                        "debug"
-                    ],
-                    "markdownDescription": "Log Level. See also `vscode-neovim.logOutputToConsole`."
-                },
                 "vscode-neovim.logOutputToConsole": {
                     "type": "boolean",
                     "default": false,
-                    "markdownDescription": "Log to vscode developer console (not output channel!). \n- Hint: Run the `Developer: Toggle Developer Tools` command to see the console. \n- Hint: Adjust the `vscode-neovim.logLevel` setting to see more messages."
+                    "markdownDescription": "Log to vscode developer console (not output channel!). \n- Hint: Run the `Developer: Toggle Developer Tools` command to see the console."
                 },
                 "vscode-neovim.highlightGroups.highlights": {
                     "type": "object",
@@ -341,23 +303,23 @@
                     },
                     "default": {
                         "IncSearch": {
-                            "backgroundColor": "theme.editor.findMatchBackground",
-                            "borderColor": "theme.editor.findMatchBorder"
+                            "backgroundColor": "theme.editor.findMatchBackground"
                         },
                         "CurSearch": {
-                            "backgroundColor": "theme.editor.findMatchBackground",
-                            "borderColor": "theme.editor.findMatchBorder"
+                            "backgroundColor": "theme.editor.findMatchBackground"
                         },
                         "Search": {
-                            "backgroundColor": "theme.editor.findMatchHighlightBackground",
-                            "borderColor": "theme.editor.findMatchHighlightBorder"
+                            "backgroundColor": "theme.editor.findMatchHighlightBackground"
+                        },
+                        "Substitute": {
+                            "backgroundColor": "theme.editor.foreground",
+                            "color": "theme.editor.background"
                         }
                     }
                 },
                 "vscode-neovim.normalSelectionDebounceTime": {
                     "type": "integer",
                     "minimum": 20,
-                    "maximum": 100,
                     "default": 50,
                     "description": "Debounce time used to synchronize selection from VSCode to Nvim, typically referring to cursor movement"
                 },
@@ -383,6 +345,50 @@
                     "type": "string",
                     "default": "|",
                     "description": "Separator used by statusline"
+                },
+                "vscode-neovim.compositeTimeout": {
+                    "type": "number",
+                    "default": 300,
+                    "minimum": 100,
+                    "maximum": 1000,
+                    "description": "Timeout in milliseconds to wait for the next key in a composite key sequence"
+                },
+                "vscode-neovim.compositeKeys": {
+                    "type": "object",
+                    "default": {},
+                    "examples": [
+                        {
+                            "jj": {
+                                "command": "vscode-neovim.escape",
+                                "args": []
+                            }
+                        },
+                        {
+                            "jk": {
+                                "command": "vscode-neovim.lua",
+                                "args": [
+                                    "vim.api.nvim_input('<ESC>') require('vscode').action('workbench.action.files.save')"
+                                ]
+                            }
+                        }
+                    ],
+                    "patternProperties": {
+                        "^[ -~]{2}$": {
+                            "type": "object",
+                            "properties": {
+                                "command": {
+                                    "type": "string"
+                                },
+                                "args": {
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "command"
+                            ]
+                        }
+                    },
+                    "description": "Composite key bindings"
                 }
             }
         },
@@ -410,14 +416,6 @@
             {
                 "command": "vscode-neovim.escape",
                 "title": "Neovim: Send escape key to neovim, or other keys that will exit insert mode"
-            },
-            {
-                "command": "vscode-neovim.compositeEscape1",
-                "title": "Neovim: Composite escape key 1"
-            },
-            {
-                "command": "vscode-neovim.compositeEscape2",
-                "title": "Neovim: Composite escape key 2"
             },
             {
                 "command": "vscode-neovim.commit-cmdline",
@@ -970,6 +968,42 @@
             },
             {
                 "command": "vscode-neovim.send-cmdline",
+                "key": "tab",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<tab>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
+                "key": "shift+tab",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<S-tab>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
+                "key": "down",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<down>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
+                "key": "up",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<up>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
+                "key": "shift+down",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<S-down>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
+                "key": "shift+up",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<S-up>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
                 "key": "ctrl+h",
                 "when": "neovim.init && neovim.mode == cmdline",
                 "args": "<C-h>"
@@ -990,13 +1024,13 @@
                 "command": "vscode-neovim.send-cmdline",
                 "key": "ctrl+n",
                 "when": "neovim.init && neovim.mode == cmdline",
-                "args": "<Down>"
+                "args": "<C-n>"
             },
             {
                 "command": "vscode-neovim.send-cmdline",
                 "key": "ctrl+p",
                 "when": "neovim.init && neovim.mode == cmdline",
-                "args": "<Up>"
+                "args": "<C-p>"
             },
             {
                 "command": "vscode-neovim.send-cmdline",
@@ -1015,6 +1049,18 @@
                 "key": "ctrl+t",
                 "when": "neovim.init && neovim.mode == cmdline",
                 "args": "<C-t>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
+                "key": "ctrl+m",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<C-m>"
+            },
+            {
+                "command": "vscode-neovim.send-cmdline",
+                "key": "ctrl+j",
+                "when": "neovim.init && neovim.mode == cmdline",
+                "args": "<C-j>"
             },
             {
                 "command": "vscode-neovim.send-cmdline",
@@ -1407,11 +1453,6 @@
                 "args": "<C-\\>e"
             },
             {
-                "command": "vscode-neovim.complete-selection-cmdline",
-                "key": "tab",
-                "when": "neovim.init && neovim.mode == cmdline"
-            },
-            {
                 "key": "j",
                 "command": "list.focusDown",
                 "when": "listFocus && !inputFocus"
@@ -1604,12 +1645,12 @@
             {
                 "command": "workbench.action.quickOpenSelectNext",
                 "key": "ctrl+n",
-                "when": "inQuickOpen && (neovim.mode != cmdline || neovim.wildMenuVisible)"
+                "when": "inQuickOpen && neovim.mode != cmdline"
             },
             {
                 "command": "workbench.action.quickOpenSelectPrevious",
                 "key": "ctrl+p",
-                "when": "inQuickOpen && (neovim.mode != cmdline || neovim.wildMenuVisible)"
+                "when": "inQuickOpen && neovim.mode != cmdline"
             },
             {
                 "key": "ctrl+n",
@@ -1685,6 +1726,16 @@
                 "command": "editor.action.goToBottomHover",
                 "key": "shift+g",
                 "when": "editorHoverFocused"
+            },
+            {
+                "command": "focusNextRenameSuggestion",
+                "key": "ctrl+n",
+                "when": "renameInputVisible"
+            },
+            {
+                "command": "focusPreviousRenameSuggestion",
+                "key": "ctrl+p",
+                "when": "renameInputVisible"
             },
             {
                 "command": "-workbench.action.switchWindow",
@@ -2072,35 +2123,59 @@
         ]
     },
     "scripts": {
-        "lint": "pre-commit run --all eslint",
-        "format": "pre-commit run --all prettier && pre-commit run --all stylua-github",
+        "lint": "eslint --fix src",
+        "lint:check": "eslint src",
+        "format": "npm run prettier && npm run stylua",
+        "format:check": "npm run prettier:check && npm run stylua:check",
+        "prettier": "prettier --ignore-path .gitignore --ignore-path .prettierignore -w .",
+        "prettier:check": "prettier --ignore-path .gitignore --ignore-path .prettierignore --check .",
+        "stylua": "stylua .",
+        "stylua:check": "stylua --check .",
         "keybind": "node ./scripts/keybindings/index.cjs",
-        "test": "node ./out/test/runTest.js",
-        "pretest": "npm run test-compile",
+        "test": "npm run test:unit && npm run test:integration",
+        "test:unit": "mocha --exit ./out/test/unit/*.js ./out/test/unit/**/*.js",
+        "test:integration": "node ./out/test/runIntegrationTest.js",
+        "pretest:unit": "npm run test-compile",
+        "pretest:integration": "npm run test-compile",
         "vscode:prepublish": "webpack --mode production",
         "webpack": "webpack --mode development",
         "webpack-dev": "webpack --mode development --watch",
-        "test-compile": "tsc -p ./"
+        "test-compile": "tsc -p ./",
+        "prepare": "husky",
+        "build": "vsce package -o vscode-neovim.vsix",
+        "build:dev": "vsce package --no-update-package-json -o vscode-neovim.vsix $(node -e 'console.log(`${process.env.npm_package_version}-dev`)')"
     },
     "devDependencies": {
-        "@types/lodash-es": "^4.17.12",
+        "@johnnymorganz/stylua-bin": "^0.20.0",
+        "@sinonjs/fake-timers": "^11.2.2",
+        "@types/lodash": "^4.17.4",
         "@types/mocha": "^10.0.6",
-        "@types/node": "^20.12.2",
+        "@types/node": "^20.12.5",
+        "@types/sinonjs__fake-timers": "^8.1.5",
         "@types/vscode": "^1.87.0",
         "@vscode/test-electron": "^2.3.9",
         "@vscode/vsce": "^2.24.0",
+        "eslint": "^8.57.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-import": "^2.29.1",
+        "eslint-plugin-prettier": "^5.1.3",
+        "globals": "^15.2.0",
+        "husky": "^9.0.11",
         "mocha": "^10.4.0",
+        "prettier": "^3.2.5",
         "source-map-support": "^0.5.19",
         "ts-loader": "^9.5.1",
-        "typescript": "^5.4.3",
+        "typescript": "^5.4.4",
+        "typescript-eslint": "^7.8.0",
         "webpack": "^5.91.0",
         "webpack-cli": "^5.1.4"
     },
     "dependencies": {
+        "@jpwilliams/waitgroup": "^2.1.1",
         "async-mutex": "^0.5.0",
         "fast-myers-diff": "^3.2.0",
         "grapheme-splitter": "^1.0.4",
-        "lodash-es": "^4.17.21",
+        "lodash": "^4.17.21",
         "neovim": "^5.1.0",
         "ts-wcwidth": "^2.0.3"
     }

@@ -16,11 +16,17 @@ jobs:
         runs-on: ${{ matrix.os }}
         steps:
             - uses: actions/checkout@v4
+
             - name: Setup Node
               uses: actions/setup-node@v4
               with:
                   node-version: "18"
                   cache: "npm"
+
+            - name: Update Homebrew Caches
+              if: matrix.os == 'macos-latest'
+              run: brew update
+
             - name: Install Neovim
               uses: rhysd/action-setup-vim@v1
               id: vim
@@ -30,12 +36,15 @@ jobs:
                   # version: v0.9.0
             - name: npm install
               run: npm ci --silent
+
             - name: Build
               run: npm run test-compile
+
             - name: Webpack
               run: npm run webpack
+
             - name: Test
-              uses: GabrielBB/xvfb-action@v1
+              uses: coactions/setup-xvfb@v1
               env:
                   NEOVIM_PATH: ${{ steps.vim.outputs.executable }}
                   NEOVIM_DEBUG: 1
@@ -74,7 +83,14 @@ jobs:
                   release-type: node
                   package-name: vscode-neovim
                   bump-minor-pre-major: true
-                  token: ${{ secrets.RELEASE_PLEASE_KEY }}
+                  changelog-types: >
+                      [
+                        { "type": "feat", "section": "Features", "hidden": false },
+                        { "type": "fix", "section": "Bug Fixes", "hidden": false },
+                        { "type": "docs", "section": "Documentation", "hidden": false },
+                        { "type": "refactor", "section": "Refactor", "hidden": false },
+                        { "type": "perf", "section": "Performance Improvements", "hidden": false }
+                      ]
             - uses: actions/checkout@v4
               if: ${{ steps.release.outputs.release_created }}
             - uses: actions/setup-node@v4

@@ -192,12 +192,12 @@ const keybinds = [
     {
         command: "workbench.action.quickOpenSelectNext",
         key: "ctrl+n",
-        when: "inQuickOpen && (neovim.mode != cmdline || neovim.wildMenuVisible)",
+        when: "inQuickOpen && neovim.mode != cmdline",
     },
     {
         command: "workbench.action.quickOpenSelectPrevious",
         key: "ctrl+p",
-        when: "inQuickOpen && (neovim.mode != cmdline || neovim.wildMenuVisible)",
+        when: "inQuickOpen && neovim.mode != cmdline",
     },
     {
         key: "ctrl+n",
@@ -275,6 +275,18 @@ const keybinds = [
         command: "editor.action.goToBottomHover",
         key: "shift+g",
         when: "editorHoverFocused",
+    },
+    // #endregion
+    // #region Rename Input
+    {
+        command: "focusNextRenameSuggestion",
+        key: "ctrl+n",
+        when: "renameInputVisible",
+    },
+    {
+        command: "focusPreviousRenameSuggestion",
+        key: "ctrl+p",
+        when: "renameInputVisible",
     },
     // #endregion
 ];

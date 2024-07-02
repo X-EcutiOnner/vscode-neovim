@@ -1,16 +1,17 @@
 import { ChildProcess, spawn } from "child_process";
 import path from "path";
 
-import { attach, NeovimClient } from "neovim";
-import vscode, { Disposable, Range, window, type ExtensionContext } from "vscode";
+import { attach, findNvim, NeovimClient } from "neovim";
+import vscode, { Disposable, ExtensionKind, Range, window, type ExtensionContext } from "vscode";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { transports as loggerTransports, createLogger as winstonCreateLogger } from "winston";
 
 import actions from "./actions";
 import { BufferManager } from "./buffer_manager";
-import { CommandLineManager } from "./command_line_manager";
+import { CommandLineManager } from "./cmdline_manager";
 import { CommandsController } from "./commands_controller";
 import { config } from "./config";
+import { NVIM_MIN_VERSION } from "./constants";
 import { CursorManager } from "./cursor_manager";
 import { DocumentChangeManager } from "./document_change_manager";
 import { eventBus } from "./eventBus";
@@ -62,9 +63,9 @@ export class MainController implements vscode.Disposable {
 
     public constructor(private extContext: ExtensionContext) {}
 
-    public async init(outputChannel: vscode.LogOutputChannel): Promise<void> {
+    public async init(): Promise<void> {
         const [cmd, args] = this.buildSpawnArgs();
-        logger.info(`starting nvim: ${cmd} ${args.join(" ")}`);
+        logger.info(`Starting nvim: ${cmd} ${args.join(" ")}`);
         this.nvimProc = spawn(cmd, args);
         this.disposables.push(
             new Disposable(() => {
@@ -103,20 +104,23 @@ export class MainController implements vscode.Disposable {
         this.client.on("notification", this.onNeovimNotification);
         this.client.on("request", this.onNeovimRequest);
         this.setClientInfo();
+        await this.setCurrentDir();
         await this.client.setVar("vscode_channel", await this.client.channelId);
+        await this.client.setVar("vscode_nvim_min_version", NVIM_MIN_VERSION);
 
         // This is an exception. Should avoid doing this.
         Object.defineProperty(actions, "client", { get: () => this.client, configurable: true });
 
         this.disposables.push(
             vscode.commands.registerCommand("_getNeovimClient", () => this.client),
-            vscode.commands.registerCommand("vscode-neovim.lua", async (lua) => {
-                if (!lua) {
+            vscode.commands.registerCommand("vscode-neovim.lua", async (code: string | string[]) => {
+                const luaCode = typeof code === "string" ? code : code.join("\n");
+                if (!luaCode.length) {
                     window.showWarningMessage("No lua code provided");
                     return;
                 }
                 try {
-                    await this.client.lua(lua);
+                    await this.client.lua(luaCode);
                 } catch (e) {
                     logger.error(e instanceof Error ? e.message : e);
                 }
@@ -131,7 +135,7 @@ export class MainController implements vscode.Disposable {
             (this.changeManager = new DocumentChangeManager(this)),
             (this.commandLineManager = new CommandLineManager(this)),
             (this.statusLineManager = new StatusLineManager(this)),
-            (this.messagesManager = new MessagesManager(outputChannel)),
+            (this.messagesManager = new MessagesManager(this)),
         );
 
         logger.debug(`UIAttach`);
@@ -146,7 +150,6 @@ export class MainController implements vscode.Disposable {
             ext_multigrid: true,
             ext_popupmenu: true,
             ext_tabline: true,
-            ext_wildmenu: true,
         });
 
         await this.bufferManager.forceSyncLayout();
@@ -158,10 +161,9 @@ export class MainController implements vscode.Disposable {
     }
 
     private _stop(msg: string) {
-        logger.error(msg);
         vscode.commands.executeCommand("vscode-neovim.stop");
         vscode.window.showErrorMessage(msg, "Restart").then((value) => {
-            if (value == "Restart") vscode.commands.executeCommand("vscode-neovim.restart");
+            if (value === "Restart") vscode.commands.executeCommand("vscode-neovim.restart");
         });
     }
 
@@ -172,8 +174,7 @@ export class MainController implements vscode.Disposable {
         }
 
         // These paths get called inside WSL, they must be POSIX paths (forward slashes)
-        const neovimPreScriptPath = path.posix.join(extensionPath, "vim", "vscode-neovim.vim");
-        const neovimPostScriptPath = path.posix.join(extensionPath, "runtime/lua", "vscode-neovim/force-options.lua");
+        const neovimPreScriptPath = path.posix.join(extensionPath, "runtime", "vscode-neovim.vim");
 
         const args = [];
 
@@ -184,23 +185,27 @@ export class MainController implements vscode.Disposable {
             }
         }
 
+        let neovimPath = config.neovimPath;
+        // Only try to find nvim if the path is the default one
+        // And if we are not using WSL
+        if (neovimPath === "nvim" && !config.useWsl) {
+            const nvimResult = findNvim({ minVersion: NVIM_MIN_VERSION });
+            logger.debug("Find nvim result: ", nvimResult);
+            const matched = nvimResult.matches.find((match) => !match.error);
+            if (!matched) {
+                throw new Error("Unable to find a suitable neovim executable. Please check your neovim installation.");
+            }
+            neovimPath = matched.path;
+        }
+
         args.push(
-            config.neovimPath,
+            neovimPath,
             "-N",
             "--embed",
-            // load support script before user config (to allow to rebind keybindings/commands)
+            // Initialize vscode neovim modules
             "--cmd",
             `source ${neovimPreScriptPath}`,
-            // load options after user config
-            "-S",
-            neovimPostScriptPath,
         );
-
-        const workspaceFolder = vscode.workspace.workspaceFolders;
-        const cwd = workspaceFolder?.length ? workspaceFolder[0].uri.fsPath : undefined;
-        if (cwd && !vscode.env.remoteName) {
-            args.push("-c", `cd ${config.useWsl ? wslpath(cwd) : cwd}`);
-        }
 
         if (parseInt(process.env.NEOVIM_DEBUG || "", 10) === 1) {
             args.push(
@@ -240,7 +245,7 @@ export class MainController implements vscode.Disposable {
             const range = options.range;
             let targetRange: Range;
             if (Array.isArray(range)) {
-                if (range.length == 2) {
+                if (range.length === 2) {
                     const startLine = Math.max(0, range[0]);
                     const endLine = Math.min(editor.document.lineCount - 1, range[1]);
                     targetRange = new Range(doc.lineAt(startLine).range.start, doc.lineAt(endLine).range.end);
@@ -264,7 +269,7 @@ export class MainController implements vscode.Disposable {
     private onNeovimNotification = async (method: string, events: [string, ...any[]]) => {
         switch (method) {
             case "vscode-action": {
-                const action = events[0] as string;
+                const action = events[0];
                 let options = events[1] as VSCodeActionOptions | [];
                 if (Array.isArray(options)) options = {}; // empty lua table
 
@@ -272,7 +277,7 @@ export class MainController implements vscode.Disposable {
                 if (callbackId) {
                     this.client.handleRequest("vscode-action", events, {
                         send: (resp: any, isError?: boolean): void => {
-                            this.client.executeLua('require"vscode-neovim.api".invoke_callback(...)', [
+                            this.client.executeLua('require"vscode.api".invoke_callback(...)', [
                                 callbackId,
                                 resp,
                                 !!isError,
@@ -297,22 +302,32 @@ export class MainController implements vscode.Disposable {
             case "redraw": {
                 const redrawEvents = events as [string, ...any[]][];
                 const hasFlush = findLastEvent("flush", events);
+                // nvim will send us a 'flush' event when we should persist the updates to the editor.
+                // Until that point, we should disregard all events
+                // https://neovim.io/doc/user/ui.html
                 if (hasFlush) {
                     const batch = [...this.currentRedrawBatch.splice(0), ...redrawEvents];
-                    const eventData = batch.map(
-                        (b) =>
-                            ({
-                                name: b[0],
-                                args: b.slice(1),
-                                get firstArg() {
-                                    return this.args[0];
-                                },
-                                get lastArg() {
-                                    return this.args[this.args.length - 1];
-                                },
-                            }) as any,
-                    );
-                    eventBus.fire("redraw", eventData);
+                    // Send out the flush events in order. Nvim insists we handle the events in order.
+                    // From the nvim UI docs: "Events must be handled in-order. Nvim sends a "flush" event when it has
+                    // completed a redraw of the entire screen (so all windows have a consistent view of buffer state, options,
+                    // etc.)."
+                    //
+                    // NOTE: some of the listeners for `redraw` event will kick off asynchronous tasks, which may
+                    //       cause out-of-order execution. Ideally, this should be avoided, but it is not always
+                    //       possible. At minimum, listeners should ensure that their `redraw` events complete fully
+                    //       before they process `flush-redraw`.
+                    batch.forEach((batchItem) => {
+                        const eventData = {
+                            name: batchItem[0],
+                            args: batchItem.slice(1),
+                        } as any;
+
+                        eventBus.fire("redraw", eventData);
+                    });
+
+                    // Events are processed in order, so we will send a flush event
+                    // once all the redraws have been sent
+                    eventBus.fire("flush-redraw", []);
                 } else {
                     this.currentRedrawBatch.push(...redrawEvents);
                 }
@@ -327,7 +342,7 @@ export class MainController implements vscode.Disposable {
     ): Promise<void> => {
         switch (method) {
             case "vscode-action": {
-                const action = requestArgs[0] as string;
+                const action = requestArgs[0];
                 let options = requestArgs[1] as Omit<VSCodeActionOptions, "callback"> | [];
                 if (Array.isArray(options)) options = {}; // empty lua table
 
@@ -347,7 +362,34 @@ export class MainController implements vscode.Disposable {
     private setClientInfo() {
         const versionString = this.extContext.extension.packageJSON.version as string;
         const [major, minor, patch] = [...versionString.split(".").map((n) => +n), 0, 0, 0];
+        logger.debug(`Setting client info: vscode-neovim ${major}.${minor}.${patch}`);
         this.client.setClientInfo("vscode-neovim", { major, minor, patch }, "embedder", {}, {});
+    }
+
+    private async setCurrentDir() {
+        let cwd: string | undefined;
+
+        const expectedCwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!expectedCwd) return cwd;
+
+        // Remote Development
+        if (vscode.env.remoteName) {
+            // Runs on the Remote Extension Host
+            if (this.extContext.extension.extensionKind === ExtensionKind.Workspace) {
+                cwd = expectedCwd;
+            }
+        } else {
+            cwd = config.useWsl ? wslpath(expectedCwd) : expectedCwd;
+        }
+
+        if (cwd) {
+            logger.debug(`Setting current dir to: ${cwd}`);
+            try {
+                await this.client.request("nvim_set_current_dir", [cwd]);
+            } catch (e) {
+                logger.error(`Failed to set current dir: ${e}`);
+            }
+        }
     }
 
     /** Logs diagnostic info for troubleshooting. */

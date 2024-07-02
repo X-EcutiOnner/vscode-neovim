@@ -2,14 +2,16 @@ import * as vscode from "vscode";
 
 import actions from "./actions";
 import { config } from "./config";
-import { EXT_ID, EXT_NAME } from "./constants";
+import { EXT_ID } from "./constants";
 import { eventBus } from "./eventBus";
-import { LogLevel, createLogger, logger as rootLogger } from "./logger";
+import { createLogger, logger as rootLogger } from "./logger";
 import { MainController } from "./main_controller";
 import { VSCodeContext, disposeAll } from "./utils";
 
 const logger = createLogger(EXT_ID);
 
+// Store the disposables that need to be disposed of when the extension
+// deactivates and are not affected by the restart command.
 const disposables: vscode.Disposable[] = [];
 export async function activate(context: vscode.ExtensionContext, isRestart = false): Promise<void> {
     if (!isRestart) {
@@ -27,11 +29,8 @@ export async function activate(context: vscode.ExtensionContext, isRestart = fal
         verifyExperimentalAffinity();
     }
 
-    const outputChannel = vscode.window.createOutputChannel(EXT_NAME, { log: true });
-    disposables.push(outputChannel);
-
     config.init();
-    rootLogger.init(LogLevel[config.logLevel], config.logPath, config.outputToConsole, outputChannel);
+    rootLogger.init(config.logPath, config.outputToConsole);
     eventBus.init();
     actions.init();
     context.subscriptions.push(
@@ -45,12 +44,12 @@ export async function activate(context: vscode.ExtensionContext, isRestart = fal
     try {
         const plugin = new MainController(context);
         context.subscriptions.push(plugin);
-        await plugin.init(outputChannel);
+        await plugin.init();
     } catch (e) {
         vscode.window
             .showErrorMessage(`[Failed to start nvim] ${e instanceof Error ? e.message : e}`, "Restart")
             .then((value) => {
-                if (value == "Restart") {
+                if (value === "Restart") {
                     vscode.commands.executeCommand("vscode-neovim.restart");
                 }
             });
@@ -61,7 +60,7 @@ export function deactivate(isRestart = false) {
     if (!isRestart) disposeAll(disposables);
 }
 
-async function verifyExperimentalAffinity(): Promise<void> {
+function verifyExperimentalAffinity(): void {
     const extensionsConfiguration = vscode.workspace.getConfiguration("extensions");
     const affinityConfiguration = extensionsConfiguration.inspect<{ [key: string]: [number] }>("experimental.affinity");
 
@@ -102,7 +101,7 @@ async function verifyExperimentalAffinity(): Promise<void> {
             "Cancel",
         )
         .then((value) => {
-            if (value == "Yes") {
+            if (value === "Yes") {
                 setAffinity(defaultAffinity);
                 vscode.window
                     .showInformationMessage(
@@ -110,7 +109,7 @@ async function verifyExperimentalAffinity(): Promise<void> {
                         "Restart",
                     )
                     .then((value) => {
-                        if (value == "Restart") {
+                        if (value === "Restart") {
                             vscode.commands.executeCommand("workbench.action.restartExtensionHost");
                         }
                     });

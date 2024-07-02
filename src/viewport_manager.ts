@@ -1,15 +1,19 @@
-import { DebouncedFunc, debounce } from "lodash-es";
-import { Disposable, Position, TextEditor, TextEditorVisibleRangesChangeEvent, window, workspace } from "vscode";
+import { DebouncedFunc, debounce } from "lodash";
+import {
+    Disposable,
+    EventEmitter,
+    Position,
+    TextEditor,
+    TextEditorVisibleRangesChangeEvent,
+    window,
+    workspace,
+} from "vscode";
 
 import actions from "./actions";
 import { config } from "./config";
 import { EventBusData, eventBus } from "./eventBus";
-import { createLogger } from "./logger";
 import { MainController } from "./main_controller";
 import { ManualPromise, disposeAll } from "./utils";
-
-const logger = createLogger("ViewportManager");
-
 // all 0-indexed
 export class Viewport {
     line = 0; // current line
@@ -23,36 +27,61 @@ export class Viewport {
 export class ViewportManager implements Disposable {
     private disposables: Disposable[] = [];
 
+    private viewportChangedPromise?: ManualPromise;
+
+    public get isSyncDone(): Promise<unknown> {
+        return Promise.resolve(this.viewportChangedPromise?.promise);
+    }
+
     /**
      * Current grid viewport, indexed by grid
      */
     private gridViewport: Map<number, Viewport> = new Map();
 
-    private syncViewportPromise?: ManualPromise;
-
-    private get client() {
-        return this.main.client;
-    }
+    // TODO: Temporary solution. Need to refactor cursor manager and viewport manager.
+    // Related issue: https://github.com/neovim/neovim/issues/28800
+    private cursorChanged = new EventEmitter<number>();
+    public onCursorChanged = this.cursorChanged.event;
 
     public constructor(private main: MainController) {
         this.disposables.push(
+            this.cursorChanged,
             window.onDidChangeTextEditorVisibleRanges(this.onDidChangeVisibleRange),
             eventBus.on("redraw", this.handleRedraw, this),
-            eventBus.on("window-scroll", ([winId, saveView]) => {
-                const gridId = this.main.bufferManager.getGridIdForWinId(winId);
-                if (!gridId) {
-                    logger.warn(`Unable to update scrolled view. No grid for winId: ${winId}`);
-                    return;
-                }
-                const view = this.getViewport(gridId);
-                view.leftcol = saveView.leftcol;
-                view.skipcol = saveView.skipcol;
-            }),
+            eventBus.on("viewport-changed", ([view]) => this.handleViewportChanged(view)),
         );
     }
 
-    public get isSyncDone(): Promise<void> {
-        return Promise.resolve(this.syncViewportPromise?.promise);
+    private handleViewportChanged({
+        winid,
+        leftcol,
+        skipcol,
+        lnum,
+        col,
+        topline,
+    }: EventBusData<"viewport-changed">[0]) {
+        this.viewportChangedPromise?.resolve();
+        this.viewportChangedPromise = undefined;
+
+        const gridId = this.main.bufferManager.getGridIdForWinId(winid);
+        if (!gridId) return;
+
+        this.viewportChangedPromise = new ManualPromise();
+
+        const view = this.getViewport(gridId);
+        const { line: oldLine, col: oldCol } = view;
+        view.line = lnum;
+        view.col = col;
+        view.topline = topline;
+        view.leftcol = leftcol;
+        view.skipcol = skipcol;
+
+        if (oldLine !== view.line || oldCol !== view.col) {
+            this.cursorChanged.fire(gridId);
+        }
+
+        this.viewportChangedPromise.resolve();
+        this.viewportChangedPromise = undefined;
     }
 
     /**
@@ -83,46 +112,27 @@ export class ViewportManager implements Disposable {
         return new Position(view.topline, view.leftcol);
     }
 
-    private async handleRedraw(data: EventBusData<"redraw">) {
-        for (const { name, args } of data) {
-            switch (name) {
-                case "win_viewport": {
-                    for (const [grid, , topline, botline, curline, curcol] of args) {
-                        const view = this.getViewport(grid);
-                        view.topline = topline;
-                        view.botline = botline;
-                        view.line = curline;
-                        view.col = curcol;
+    private handleRedraw({ name, args }: EventBusData<"redraw">) {
+        switch (name) {
+            case "win_viewport": {
+                for (const [grid, , topline, botline, curline, curcol] of args) {
+                    const view = this.getViewport(grid);
+                    const { line, col } = view;
+                    view.topline = topline;
+                    view.botline = botline;
+                    view.line = curline;
+                    view.col = curcol;
+                    if (line !== curline || col !== curcol) {
+                        this.cursorChanged.fire(grid);
                     }
-                    // HACK: See #1575
-                    // Don't await, as it may result in processing different events in the wrong order.
-                    if (this.main.modeManager.isCmdlineMode && !this.syncViewportPromise) {
-                        this.syncViewportPromise = new ManualPromise();
-                        const _lua = "return {vim.api.nvim_get_current_win(), vim.fn.winsaveview()}";
-                        (this.client.lua(_lua) as Promise<[number, any]>)
-                            .then(([currWin, currView]) => {
-                                const grid = this.main.bufferManager.getGridIdForWinId(currWin);
-                                if (!grid) return;
-                                const view = this.getViewport(grid);
-                                view.line = currView.lnum - 1;
-                                view.col = currView.col;
-                                view.topline = currView.topline - 1;
-                                view.leftcol = currView.leftcol;
-                                view.skipcol = currView.skipcol;
-                            })
-                            .finally(() => {
-                                this.syncViewportPromise?.resolve();
-                                this.syncViewportPromise = undefined;
-                            });
-                    }
-                    break;
                 }
-                case "grid_destroy": {
-                    for (const [grid] of args) {
-                        this.gridViewport.delete(grid);
-                    }
-                    break;
+                break;
+            }
+            case "grid_destroy": {
+                for (const [grid] of args) {
+                    this.gridViewport.delete(grid);
                 }
+                break;
             }
         }
     }
@@ -144,7 +154,7 @@ export class ViewportManager implements Disposable {
             trailing: true,
         });
     }
-    private onDidChangeVisibleRange = async (e: TextEditorVisibleRangesChangeEvent): Promise<void> => {
+    private onDidChangeVisibleRange = (e: TextEditorVisibleRangesChangeEvent) => {
         if (!this.debouncedScrollNeovim) {
             this.refreshDebounceTime();
             this.refreshDebounceScroll();
@@ -163,7 +173,7 @@ export class ViewportManager implements Disposable {
             return;
         }
         const ranges = editor.visibleRanges;
-        if (!ranges || ranges.length == 0 || ranges[0].end.line - ranges[0].start.line <= 1) {
+        if (!ranges || ranges.length === 0 || ranges[0].end.line - ranges[0].start.line <= 1) {
             return;
         }
         const startLine = ranges[0].start.line - config.neovimViewportHeightExtend;
@@ -176,7 +186,7 @@ export class ViewportManager implements Disposable {
             return;
         }
         const viewport = this.gridViewport.get(gridId);
-        if (viewport && startLine != viewport?.topline && currentLine == viewport?.line) {
+        if (viewport && startLine !== viewport?.topline && currentLine === viewport?.line) {
             actions.lua("scroll_viewport", Math.max(startLine, 0), endLine);
         }
     }

@@ -20,14 +20,20 @@ git clone https://github.com/vscode-neovim/vscode-neovim
 
 ```sh
 npm install
-pipx install pre-commit  # https://pre-commit.com/#installation
-pre-commit install
 ```
 
 3. Build the VSIX package:
 
 ```sh
-npx vsce package -o vscode-neovim.vsix
+npm run build
+```
+
+If you are developing the extension, and want to install your changes in your VSCode editor, it may be useful to instead
+run the following, so that VSCode does not cache your custom VSIX as the VSIX corresponding to an existing marketplace
+version:
+
+```sh
+npm run build:dev
 ```
 
 4. From VSCode, use the `Extensions: Install from VSIX` command to install the package.
@@ -39,24 +45,49 @@ npx vsce package -o vscode-neovim.vsix
 
 ### Logging
 
-You can observe the extension logs via the `vscode-neovim` Output channel or from the dev tools console (run the
-`Developer: Toggle Developer Tools` vscode command to see the console).
+You can view the extension logs in one of three locations
 
-Note: some messages are not logged to the Output channel, to avoid infinite loop. This is decided by the
-[`logToOutputChannel` parameter](https://github.com/vscode-neovim/vscode-neovim/blob/7337ffd5009067d074af5371171f277cb522aa9b/src/logger.ts#L184).
+1. Via the `vscode-neovim logs` Output channel
 
-### Run Tests
+    - Note: some messages are not logged to the Output channel, to avoid infinite loop. This is decided by the
+      [`logToOutputChannel` parameter](https://github.com/vscode-neovim/vscode-neovim/blob/7337ffd5009067d074af5371171f277cb522aa9b/src/logger.ts#L184).
+
+2. From the dev tools console (run the `Developer: Toggle Developer Tools` vscode command to see the console) by
+   enabling the `vscode-neovim.logOutputToConsole` setting.
+
+    - If you ran the extension from the `Run Extension` button (see above), you can also view logs in the
+      `Debug Console` of your original VSCode window, but you will still need to enable
+      `vscode-neovim.logOutputToConsole`.
+
+3. From a log file of your choosing, by configuring the `vscode-neovim.logPath` setting.
+
+VSCode, by default, will only show messages at the "Info" level or above, but than can be changed by running the command
+`Developer Set Log Level...` -> `vscode-neovim` and selecting the desired log level. You can also do this by clicking
+the gear icon in the output pane, with `vscode-neovim` selected.
+
+### Run Unit Tests
+
+Unit tests run in node only (not vscode), and can call code directly (unlike the integration tests). You can run unit
+tests independently by doing `npm run test:unit`.
+
+### Run Integration Tests
+
+Integration tests exercise a vscode instance which runs the vscode-neovim extension in a separate "extension host"
+process. These tests call the vscode API which indirectly exercises the extension; they cannot access the memory of the
+extension directly. You can run integration tests by running `npm run test:integration` or interactively through VSCode
+by:
 
 1. Open the repo in VSCode.
 2. Go to debug view and click `Extension Tests` (F5).
-3. To run individual tests, modify `grep: ".*"` in `src/test/suite/index.ts` or set the `NEOVIM_TEST_REGEX` environment
-   variable, e.g. `NEOVIM_TEST_REGEX="foo bar" npm run test`.
+3. To run individual tests, modify `test_regex = ".*"` in `src/test/integ/index.ts` or set the `NEOVIM_TEST_REGEX`
+   environment variable, e.g. `NEOVIM_TEST_REGEX="foo bar" npm run test`.
 
 ## Style and Tools
 
--   checks should be run before each commit. Run `pre-commit install` to enable them.
+-   checks should be run before each commit. They should be enabled upon dependency initialization, but if not, you can
+    run `npx husky` to install them.
 -   run `npm run format` to automatically format typescript and lua code.
--   run `npm run lint` to check for errors in typescript and lua code.
+-   run `npm run lint` to check for errors in typescript code.
 
 ## Design Principles
 
@@ -128,8 +159,7 @@ VSCode-Neovim uses neovim's [`node-client`](https://neovim.io/node-client/index.
 neovim. This library is a wrapper around neovim's [msgpack-rpc API](https://neovim.io/doc/user/api.html). The library is
 used to send and receive messages to and from neovim. The library is also used to spawn neovim processes. Many functions
 are exposed, listed [here](https://neovim.io/node-client/classes/NeovimClient.html). However, the library is not kept up
-to date, so many API wrappers are missing. In these cases, the raw `call`, `callAtomic`, `lua`, and `command` commands
-are directly used.
+to date, so many API wrappers are missing. In those cases just use `call`, `lua`, and `command` instead.
 
 ### Neovim UI Protocol
 
@@ -163,7 +193,7 @@ To avoid RPC round trips, the logic using the lua or vim APIs should be moved to
 
 ### Set up VSCode for lua development
 
--   Install [sumneko.lua](marketplace.visualstudio.com/items?itemName=sumneko.lua).
+-   Install [sumneko.lua](https://marketplace.visualstudio.com/items?itemName=sumneko.lua).
 
 -   In nvim, run `lua=vim.api.nvim_get_runtime_file("", true)`
 -   Add runtime path to `settings.json`, like:
@@ -184,7 +214,7 @@ editor with nvim, and roughly matches the nvim ui API. Managers can do the follo
 
 -   Listen to ui and custom events from nvim through `eventBus.on` (`src/eventBus.ts`).
 -   Listen to vscode events such as `window.onDidChangeTextEditorSelection` and `workspace.onDidChangeTextDocument`.
--   Access the lua API through `this.client.call` and `callAtomic`.
+-   Access the lua API through `this.client.call` and `this.client.lua`.
 
 ### ModeManager
 
@@ -208,8 +238,8 @@ HighlightManager listens to the `ext_linegrid` API and renders highlights using 
 ### ViewportManager
 
 ViewportManager is responsible for syncing the viewport (editor window, scroll position) between vscode and nvim. It
-listens to the `win_viewport` event, and supplements it with the custom `window-scroll` event triggered by the
-`WinScrolled` autocommand. It also keeps track of the cursor position more reliably than `grid_cursor_goto`.
+listens to the `win_viewport` event, and supplements it with the custom `viewport-changed` event. It also keeps track of
+the cursor position more reliably than `grid_cursor_goto`.
 
 ### CursorManager
 
@@ -234,7 +264,7 @@ lock is removed.
 In the case that the mode is visual, a different selection is created that represents the visual selection. However,
 this means that sometimes the primary selection needed to select the visual range is not the same selection needed to
 show the cursor at the correct position. For this reason, during insert mode, the vscode cursor is hidden and instead a
-"fake cursor" is rendered as a text decoration using the highlight API in `runtime/lua/vscode-neovim/cursor.lua`.
+"fake cursor" is rendered as a text decoration using the highlight API in `runtime/lua/vscode/cursor.lua`.
 
 #### VSCode -> Neovim
 
